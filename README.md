@@ -1,1 +1,2 @@
-# rppg-online-python\n Online remothe photoplethysmography with basler camera
+# rppg-online-python
+Online remothe photoplethysmography with basler camera
