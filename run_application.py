@@ -2,6 +2,7 @@
 Real time rPPG system for Basler cameras
 
 '''
+
 from pypylon import pylon
 import numpy as np
 import cv2
@@ -20,7 +21,7 @@ img_height = 500
 K = 6                   # number of top ranked eigenvectors
 L1 = frame_rate
 u0 = 1
-L2 = 256                # window length in frame
+L2 = 260                # window length in frame
 l = L2/frame_rate       # window length in seconds
 Fb = 1./l                # frequency bin in Hz
 f = np.linspace(0, L2*Fb, L2, dtype=np.double)  # frequency vector in Hz
@@ -53,7 +54,8 @@ converter = pylon.ImageFormatConverter()
 converter.OutputPixelFormat = pylon.PixelType_BGR8packed
 converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
 
-plt.figure(figsize=(14, 4))
+fig, ax = plt.subplots(3, 1, figsize=(14, 10))
+ax[0].set_ylim((0.003, 250))
 
 while camera.IsGrabbing():
     startTime = time.time()
@@ -73,6 +75,7 @@ while camera.IsGrabbing():
 
     # Downsample the image
     Id = downscale_local_mean(frame, (25, 25, 1))
+    downscale_size = Id.shape
 
     # Reshape Id
     Id = np.reshape(Id, (Id.shape[0] * Id.shape[1], 3))
@@ -104,6 +107,11 @@ while camera.IsGrabbing():
 
     for i in range(len(norm_fact)):
         w[:, i] = w[:, i]/norm_fact[i]
+
+    # Display a weight mask
+    # cv2.namedWindow('Weight mask', cv2.WINDOW_NORMAL)
+    # cv2.imshow("Weight mask", np.reshape((w[:, 0]/np.max(w[:, 0])), (downscale_size[0], downscale_size[1])))
+    # cv2.resizeWindow("Weight mask", 500, 500)
 
     # Weight subregions with the attained masks
     J = np.zeros((w.shape[1], Id.shape[0], Id.shape[1]))
@@ -138,7 +146,7 @@ while camera.IsGrabbing():
         Z = Cn[:, :, 0] + Cn[:, :, 1] + Cn[:, :, 2]
         Zt.append(np.divide(np.subtract(Z, np.mean(Z, axis=0)), np.std(Z, axis=0)))
 
-    if len(Pt) == 10:
+    if len(Pt) == 13:
 
         Ptn = np.array(Pt)
 
@@ -154,11 +162,32 @@ while camera.IsGrabbing():
         W[:, 0:B[0]] = 0
         W[:, B[1]:] = 0
 
-        h = np.fft.ifft(np.sum(np.multiply(W, Fp), axis=0))
+        hfq = np.sum(np.multiply(W, Fp), axis=0)
+        hr_idx = np.argmax(np.abs(hfq.real))
+        hr_est = f[hr_idx]*60
+
+        h_raw = np.fft.ifft(np.sum(Fp, axis=0))
+        h_raw = h_raw.real
+        h = np.fft.ifft(hfq)
         h = h.real
-        print h.shape
-        plt.clf()
-        plt.plot(h)
+
+        #fig.clf()
+        ax[0].clear()
+        ax[0].plot(h)
+        ax[0].set_title("Filtered signal")
+        ax[0].text(150, .002, '%s bpm' % int(hr_est), fontsize=18)
+        ax[0].set_ylim((-0.003, 0.003))
+
+        ax[1].clear()
+        ax[1].plot(h_raw)
+        ax[1].set_title("Raw signal")
+        #ax[0].text(150, .002, '%s bpm' % int(hr_est), fontsize=18)
+        #ax[1].ylim((-0.003, 0.003))
+
+        # ax[2].clear()
+        # ax[2].plot(f[:hr_max_idx]*60, np.abs(hfq.real)[:hr_max_idx])
+        # ax[2].axvline(x=hr_est)
+
         plt.pause(0.0000000000001)
 
         del Pt[0]
