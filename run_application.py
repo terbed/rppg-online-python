@@ -55,7 +55,6 @@ converter.OutputPixelFormat = pylon.PixelType_BGR8packed
 converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
 
 fig, ax = plt.subplots(2, 1, figsize=(14, 8))
-plt_thread = core.PlotThread(1, fig, ax)
 
 while camera.IsGrabbing():
     startTime = time.time()
@@ -96,9 +95,19 @@ while camera.IsGrabbing():
 
         # --------------------------------------------------------------------------- Create final Pulse signal
         #thread.start_new_thread(core.signal_combination, (Ptn, Ztn, L2, B, f, plt_thread))
-        h, h_raw, hr_est = core.signal_combination(Ptn, Ztn, L2, B, f, plt_thread)
-        plt_thread.update_data(h, h_raw, hr_est)
-        plt_thread.start()
+        h, h_raw, hr_est = core.signal_combination(Ptn, Ztn, L2, B, f)
+
+        ax[0].clear()
+        ax[0].plot(h)
+        ax[0].set_title("Filtered signal")
+        ax[0].text(150, .002, '%s bpm' % int(hr_est), fontsize=18)
+        ax[0].set_ylim((-0.003, 0.003))
+
+        ax[1].clear()
+        ax[1].plot(h_raw)
+        ax[1].set_title("Raw signal")
+
+        plt.pause(0.0000000000001)
 
         del Pt[0]
         del Zt[0]

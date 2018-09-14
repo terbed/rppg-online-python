@@ -5,40 +5,6 @@ from matplotlib import pyplot as plt
 import threading
 
 
-# Create new thread for plotting smoothly
-class PlotThread(threading.Thread):
-
-    def __init__(self, threadID, fig, ax):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.fig = fig
-        self.ax = ax
-        self.h = None
-        self.h_raw = None
-        self.hr_est = None
-
-    def update_data(self, h, h_raw, hr_est):
-        self.h = h
-        self.h_raw = h_raw
-        self.hr_est = hr_est
-
-    def run(self):
-        self.ax[0].clear()
-        self.ax[0].plot(self.h)
-        self.ax[0].set_title("Filtered signal")
-        self.ax[0].text(150, .002, '%s bpm' % int(self.hr_est), fontsize=18)
-        self.ax[0].set_ylim((-0.003, 0.003))
-
-        self.ax[1].clear()
-        self.ax[1].plot(self.h_raw)
-        self.ax[1].set_title("Raw signal")
-
-        plt.pause(0.0000000000001)
-
-def run_camera(camera, frame, patch_size, K):
-    pass
-
-
 # --------------------------------------------- FVP ------------------------------------------------------------------
 def fvp(frame, patch_size, K):
     """
@@ -140,7 +106,7 @@ def pbv(raw_signal):
 
 
 # --------------------------------------------- Signal Comb & Plot ----------------------------------------------------
-def signal_combination(Ptn, Ztn, L2, B, f, plt_thread):
+def signal_combination(Ptn, Ztn, L2, B, f):
     """
     Combine independent pulse signal to construct the finel pulse signal.
     And plot results.
