@@ -48,7 +48,6 @@ def fvp(frame, patch_size, K):
 
     # Normalize
     norm_fact = np.sum(w, 0)
-
     for i in range(len(norm_fact)):
         w[:, i] = w[:, i]/norm_fact[i]
 
@@ -72,7 +71,7 @@ def pos(C):
     Blood volume pulse vector algorithm
 
     :param C: signal attained after averaging a patch of pixels for each frame.
-                       its shape is [frame, weight_mask, color_channel]
+                       its shape is [frame, weight_mask_stat, color_channel]
     :returns: P: The pulse signal for each weight. shape -> [time, weight_mask]
     :returns: Z: The intensity (energy) of the signal
     """

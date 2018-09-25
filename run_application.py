@@ -94,14 +94,14 @@ while camera.IsGrabbing():
         Ztn = np.reshape(Ztn, (Ztn.shape[0] * Ztn.shape[1], Ztn.shape[2]))
 
         # --------------------------------------------------------------------------- Create final Pulse signal
-        #thread.start_new_thread(core.signal_combination, (Ptn, Ztn, L2, B, f, plt_thread))
+        # thread.start_new_thread(core.signal_combination, (Ptn, Ztn, L2, B, f, plt_thread))
         h, h_raw, hr_est = core.signal_combination(Ptn, Ztn, L2, B, f)
 
         ax[0].clear()
         ax[0].plot(h)
         ax[0].set_title("Filtered signal")
-        ax[0].text(150, .002, '%s bpm' % int(hr_est), fontsize=18)
-        ax[0].set_ylim((-0.003, 0.003))
+        ax[0].text(150, .004, '%s bpm' % int(hr_est), fontsize=18)
+        ax[0].set_ylim((-0.005, 0.005))
 
         ax[1].clear()
         ax[1].plot(h_raw)
