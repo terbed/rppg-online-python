@@ -66,12 +66,13 @@ def fvp(frame, patch_size, K):
 
 
 # -------------------------------------------- POS -------------------------------------------------------------------
-def pos(C):
+def pos(C, order):
     """
-    Blood volume pulse vector algorithm
+    General Blood volume pulse vector algorithm
 
     :param C: signal attained after averaging a patch of pixels for each frame.
-                       its shape is [frame, weight_mask_stat, color_channel]
+              its shape is [frame, weight_mask_stat, color_channel]
+    :param order: list of channel order based on pulsatile amplitude strength (decreasing order)
     :returns: P: The pulse signal for each weight. shape -> [time, weight_mask]
     :returns: Z: The intensity (energy) of the signal
     """
@@ -80,8 +81,8 @@ def pos(C):
     Cn = np.divide(C, np.mean(C, axis=0)) - 1
 
     # Implementing POS algorithm (BGR channel ordering...) to attain pulse
-    X = Cn[:, :, 1] - Cn[:, :, 0]
-    Y = Cn[:, :, 1] + Cn[:, :, 0] - 2 * Cn[:, :, 2]
+    X = Cn[:, :, order[0]] - Cn[:, :, order[1]]
+    Y = Cn[:, :, order[0]] + Cn[:, :, order[1]] - 2 * Cn[:, :, order[2]]
 
     # Calculating pulse signal for each weight
     P = X + np.multiply(Y, np.divide(np.std(X, axis=0), np.std(Y, axis=0)))

@@ -29,6 +29,10 @@ hr_min_idx = np.argmin(np.abs(f*60-hr_band[0]))
 hr_max_idx = np.argmin(np.abs(f*60-hr_band[1]))
 B = [hr_min_idx, hr_max_idx]             # HR range ~ [50, 220] bpm
 
+# Channel ordering for BGR
+# The largest pulsatile strength is in G then B then R
+channel_ordering = [1, 0, 2]
+
 Jt = []
 Pt = []
 Zt = []
@@ -81,7 +85,7 @@ while camera.IsGrabbing():
         Jt[:] = []
 
         # -------------------------------------------------------------------------- Pulse extraction algorithm
-        P, Z = core.pos(C)
+        P, Z = core.pos(C, channel_ordering)
         Pt.append(P)
         Zt.append(Z)
 
@@ -100,8 +104,8 @@ while camera.IsGrabbing():
         ax[0].clear()
         ax[0].plot(h)
         ax[0].set_title("Filtered signal")
-        ax[0].text(150, .004, '%s bpm' % int(hr_est), fontsize=18)
-        ax[0].set_ylim((-0.005, 0.005))
+        ax[0].text(150, .008, '%s bpm' % int(hr_est), fontsize=18)
+        ax[0].set_ylim((-0.01, 0.01))
 
         ax[1].clear()
         ax[1].plot(h_raw)
