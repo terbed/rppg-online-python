@@ -55,8 +55,9 @@ camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 converter = pylon.ImageFormatConverter()
 
 # converting to opencv bgr format
-converter.OutputPixelFormat = pylon.PixelType_BGR8packed
-converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+converter.OutputPixelFormat = pylon.PixelType_RGB16packed
+converter.OutputBitAlignment = pylon.OutputBitAlignment_LsbAligned
+bgr_img = frame = np.ndarray(shape=(img_height, img_width, 3), dtype=np.uint16)
 
 fig, ax = plt.subplots(2, 1, figsize=(14, 8))
 
@@ -68,16 +69,20 @@ while camera.IsGrabbing():
     if grabResult.GrabSucceeded():
         # Access the image data
         image = converter.Convert(grabResult)
-        frame = image.GetArray()
+        frame = np.ndarray(buffer=image.GetBuffer(), shape=(image.GetHeight(), image.GetWidth(), 3), dtype=np.uint16)
+        bgr_img[:, :, 0] = frame[:, :, 2]
+        bgr_img[:, :, 1] = frame[:, :, 1]
+        bgr_img[:, :, 2] = frame[:, :, 0]
+
         cv2.namedWindow('Video', cv2.WINDOW_AUTOSIZE)
-        cv2.imshow('Video', frame)
+        cv2.imshow('Video', bgr_img*15)
         k = cv2.waitKey(1)
         if k == 27:
             break
     grabResult.Release()
 
     # ----------------------------------------------------------------------------- Image processing with FVP algorithm
-    Jt.append(core.fvp(frame, patch_size, K))
+    Jt.append(core.fvp(bgr_img, patch_size, K))
 
     # Extract the PPG signal
     if len(Jt) == L1:

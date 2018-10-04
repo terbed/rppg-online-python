@@ -1,8 +1,6 @@
 import numpy as np
 from skimage.transform import downscale_local_mean
 from scipy.spatial.distance import cdist
-from matplotlib import pyplot as plt
-import threading
 
 
 # --------------------------------------------- FVP ------------------------------------------------------------------
