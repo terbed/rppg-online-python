@@ -9,9 +9,9 @@ import cv2
 import time
 from matplotlib import pyplot as plt
 import src.core_algorithm as core
-import thread
 
 frame_rate = 20.
+exp_val = 10000
 hr_band = [40, 250]
 img_width = 500
 img_height = 500
@@ -47,7 +47,7 @@ camera.Width.Value = img_width
 camera.Height.Value = img_height
 camera.OffsetX.Value = 200
 camera.OffsetY.Value = 100
-camera.ExposureTime.SetValue(10000)
+camera.ExposureTime.SetValue(exp_val)
 camera.AcquisitionFrameRate.SetValue(frame_rate)
 
 # Grabing Continusely (video) with minimal delay
@@ -60,6 +60,8 @@ converter.OutputBitAlignment = pylon.OutputBitAlignment_LsbAligned
 bgr_img = frame = np.ndarray(shape=(img_height, img_width, 3), dtype=np.uint16)
 
 fig, ax = plt.subplots(2, 1, figsize=(14, 8))
+ax[0].set_title("Filtered signal")
+ax[1].set_title("Raw signal")
 
 while camera.IsGrabbing():
     startTime = time.time()
@@ -75,7 +77,7 @@ while camera.IsGrabbing():
         bgr_img[:, :, 2] = frame[:, :, 0]
 
         cv2.namedWindow('Video', cv2.WINDOW_AUTOSIZE)
-        cv2.imshow('Video', bgr_img*15)
+        cv2.imshow('Video', bgr_img*16)
         k = cv2.waitKey(1)
         if k == 27:
             break
@@ -103,18 +105,15 @@ while camera.IsGrabbing():
         Ztn = np.reshape(Ztn, (Ztn.shape[0] * Ztn.shape[1], Ztn.shape[2]))
 
         # --------------------------------------------------------------------------- Create final Pulse signal
-        # thread.start_new_thread(core.signal_combination, (Ptn, Ztn, L2, B, f, plt_thread))
         h, h_raw, hr_est = core.signal_combination(Ptn, Ztn, L2, B, f)
 
         ax[0].clear()
         ax[0].plot(h)
-        ax[0].set_title("Filtered signal")
-        ax[0].text(150, .008, '%s bpm' % int(hr_est), fontsize=18)
         ax[0].set_ylim((-0.01, 0.01))
+        ax[0].text(150, .008, '%s bpm' % int(hr_est), fontsize=18)
 
         ax[1].clear()
         ax[1].plot(h_raw)
-        ax[1].set_title("Raw signal")
 
         plt.pause(0.0000000000001)
 
