@@ -1,30 +1,36 @@
 '''
 Real time rPPG system for Basler cameras
 
+This version calculates every frame and overlap-add the results
+
 '''
 
 from pypylon import pylon
 import numpy as np
 import cv2
 import time
-from matplotlib import pyplot as plt
 import src.core_algorithm as core
+from scipy import stats
+from PyQt5 import QtCore, QtWidgets, QtGui
+import pyqtgraph as pg
+import src.disp as disp
 
 frame_rate = 20.
 exp_val = 10000
-hr_band = [40, 250]
+hr_band = [40, 200]
 img_width = 500
 img_height = 500
 
 # Initialize FVP method
 K = 6                   # number of top ranked eigenvectors
 patch_size = 25
-L1 = frame_rate
+L1 = int(frame_rate)
 u0 = 1
-L2 = 260                # window length in frame
-l = L2/frame_rate       # window length in seconds
+L2 = 256                # window length in frame
+l = float(L2)/frame_rate       # window length in seconds
 Fb = 1./l                # frequency bin in Hz
 f = np.linspace(0, L2*Fb, L2, dtype=np.double)  # frequency vector in Hz
+t = np.linspace(0, L2*1./frame_rate, L2)
 hr_min_idx = np.argmin(np.abs(f*60-hr_band[0]))
 hr_max_idx = np.argmin(np.abs(f*60-hr_band[1]))
 B = [hr_min_idx, hr_max_idx]             # HR range ~ [50, 220] bpm
@@ -34,9 +40,14 @@ B = [hr_min_idx, hr_max_idx]             # HR range ~ [50, 220] bpm
 channel_ordering = [1, 0, 2]
 
 Jt = []
-Pt = []
-Zt = []
 
+add_row = np.zeros(shape=(1, K*4), dtype=np.double)
+Pt = np.zeros(shape=(L2, K*4), dtype=np.double)
+Zt = np.zeros(shape=(L2, K*4), dtype=np.double)
+
+# Container for the overlap-added signal
+H = np.zeros(shape=(1, L2), dtype=np.double)
+H_RAW = np.zeros(shape=(1, L2), dtype=np.double)
 
 # conecting to the first available camera
 camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
@@ -49,6 +60,7 @@ camera.OffsetX.Value = 200
 camera.OffsetY.Value = 100
 camera.ExposureTime.SetValue(exp_val)
 camera.AcquisitionFrameRate.SetValue(frame_rate)
+camera.PixelFormat = "BayerBG12"
 
 # Grabing Continusely (video) with minimal delay
 camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
@@ -59,15 +71,21 @@ converter.OutputPixelFormat = pylon.PixelType_RGB16packed
 converter.OutputBitAlignment = pylon.OutputBitAlignment_LsbAligned
 bgr_img = frame = np.ndarray(shape=(img_height, img_width, 3), dtype=np.uint16)
 
-fig, ax = plt.subplots(2, 1, figsize=(14, 8))
-ax[0].set_title("Filtered signal")
-ax[1].set_title("Raw signal")
+# Set up display with PyQt
+app = QtWidgets.QApplication([])
+pg.setConfigOptions(antialias=False)  # True seems to work as well
+qtplt_thread = disp.DispThread(parent=None, t=t)
+
+shift_idx = 0
+heart_rates = []
+first_run = True
 
 while camera.IsGrabbing():
     startTime = time.time()
     grabResult = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
 
-    frame = np.array((img_width, img_height, 3), dtype=np.double)
+    bgr_img = np.ndarray(shape=(img_height, img_width, 3), dtype=np.uint16)
+
     if grabResult.GrabSucceeded():
         # Access the image data
         image = converter.Convert(grabResult)
@@ -89,43 +107,74 @@ while camera.IsGrabbing():
     # Extract the PPG signal
     if len(Jt) == L1:
         C = np.array(Jt)
-        Jt[:] = []
+        del Jt[0]       # delete the first element
 
         # -------------------------------------------------------------------------- Pulse extraction algorithm
         P, Z = core.pos(C, channel_ordering)
-        Pt.append(P)
-        Zt.append(Z)
 
-    if len(Pt) == 13:
+        if shift_idx + L1 < L2:
+            Pt[shift_idx:shift_idx+L1, :] = Pt[shift_idx:shift_idx+L1, :] + P
+            Zt[shift_idx:shift_idx+L1, :] = Zt[shift_idx:shift_idx+L1, :] + Z
 
-        Ptn = np.array(Pt)
-        Ztn = np.array(Zt)
+            # average add, not overlap add
+            Pt[shift_idx:shift_idx+L1-1, :] = Pt[shift_idx:shift_idx+L1-1, :]/2
+            Zt[shift_idx:shift_idx+L1-1, :] = Zt[shift_idx:shift_idx+L1-1, :]/2
 
-        Ptn = np.reshape(Ptn, (Ptn.shape[0]*Ptn.shape[1], Ptn.shape[2]))
-        Ztn = np.reshape(Ztn, (Ztn.shape[0] * Ztn.shape[1], Ztn.shape[2]))
+            shift_idx = shift_idx + 1
+        else: # In this case the L2 length is fully loaded, we have to remove the first element and add a new one at the end
+            # overlap add result
+            Pt = np.delete(Pt, 0, 0)  # delete first row (last frame)
+            Pt = np.append(Pt, add_row, 0)    # append zeros for the new frame point
 
-        # --------------------------------------------------------------------------- Create final Pulse signal
-        h, h_raw, hr_est = core.signal_combination(Ptn, Ztn, L2, B, f)
+            Zt = np.delete(Zt, 0, 0)  # delete first row (last frame)
+            Zt = np.append(Zt, add_row, 0)    # append zeros for the new frame point
 
-        ax[0].clear()
-        ax[0].plot(h)
-        ax[0].set_ylim((-0.01, 0.01))
-        ax[0].text(150, .008, '%s bpm' % int(hr_est), fontsize=18)
+            Pt[shift_idx-1:shift_idx+L1-1, :] = Pt[shift_idx-1:shift_idx+L1-1, :] + P
+            Zt[shift_idx-1:shift_idx+L1-1, :] = Zt[shift_idx-1:shift_idx+L1-1, :] + Z
 
-        ax[1].clear()
-        ax[1].plot(h_raw)
+            # overlap average
+            Pt[shift_idx-1:shift_idx+L1-2, :] = Pt[shift_idx-1:shift_idx+L1-2, :]/2
+            Zt[shift_idx-1:shift_idx+L1-2, :] = Zt[shift_idx-1:shift_idx+L1-2, :]/2
 
-        plt.pause(0.0000000000001)
+            computing = True
 
-        del Pt[0]
-        del Zt[0]
+    if shift_idx == L2-L1:
+        # now we can also calculate fourier and signal combination
+        h, h_raw, hr_est = core.signal_combination(Pt, Zt, L2, B, f)
+        heart_rates.append(hr_est)
+
+        H = np.delete(H, 0, 0)
+        H_RAW = np.delete(H_RAW, 0, 0)
+        H = np.append(H, 0.)
+        H_RAW = np.append(H_RAW, 0.)
+
+        # overlap add
+        H = H + h
+        H_RAW = H_RAW + h_raw
+
+        # overlap average
+        H[0:L2-1] = H[0:L2-1]/2
+        H_RAW[0:L2-1] = H_RAW[0:L2-1]/2
+
+        # [DEBUG]
+        # qtplt_thread.start_plotting_thread(H, H_RAW, hr_est)
+
+        if first_run:
+            qtplt_thread.start_plotting_thread(H, H_RAW, hr_est)
+            first_run = False
+
+    if len(heart_rates) == frame_rate*2:
+        # Display HR estimate and signals
+        estimated_HR, _ = stats.mode(heart_rates)
+        qtplt_thread.start_plotting_thread(H, H_RAW, estimated_HR)
+
+        heart_rates = []
 
     runningTime = (time.time() - startTime)
     fps = 1.0/runningTime
     print "%f  FPS" % fps
 
-
-plt.show()
-# Releasing the resource    
-camera.StopGrabbing()
 cv2.destroyAllWindows()
+app.exec_()
+# Releasing the resource
+camera.StopGrabbing()

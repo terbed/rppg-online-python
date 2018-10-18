@@ -117,11 +117,13 @@ def signal_combination(Ptn, Ztn, L2, B, f):
     :param plt_thread: A thread for plotting
     :return: Plots the results
     """
+    Ptn = np.divide(np.subtract(Ptn, np.mean(Ptn, axis=0)), np.std(Ptn, axis=0))
+    Ztn = np.divide(np.subtract(Ztn, np.mean(Ztn, axis=0)), np.std(Ztn, axis=0))
 
     Fp = np.fft.fft(np.array(np.transpose(Ptn))) / L2
     Fz = np.fft.fft(np.array(np.transpose(Ztn))) / L2
 
-    W = np.divide(np.abs(np.multiply(Fp, np.conj(Fp))), 1 + np.abs(np.multiply(Fz, np.conj(Fz))))
+    W = np.divide(np.abs(np.multiply(Fp, np.conj(Fp))), 1 + np.abs(np.multiply(Fz, np.conj(Fz))))       # Note: No need for abs...
 
     W[:, 0:B[0]] = 0
     W[:, B[1]:] = 0
@@ -129,10 +131,14 @@ def signal_combination(Ptn, Ztn, L2, B, f):
     hfq = np.sum(np.multiply(W, Fp), axis=0)
     hr_idx = np.argmax(np.abs(hfq.real))
     hr_est = f[hr_idx] * 60
+    hr_est = int(round(hr_est))
 
     h_raw = np.fft.ifft(np.sum(Fp, axis=0))
     h_raw = h_raw.real
     h = np.fft.ifft(hfq)
     h = h.real
+
+    h = (h-np.mean(h))/np.std(h)
+    h_raw = (h_raw-np.mean(h_raw))/np.std(h_raw)
 
     return h, h_raw, hr_est
