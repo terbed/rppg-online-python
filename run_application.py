@@ -56,11 +56,11 @@ camera.Open()
 # Set up camera parameters first in PylonViewer!!!
 camera.Width.Value = img_width
 camera.Height.Value = img_height
-camera.OffsetX.Value = 200
-camera.OffsetY.Value = 100
+camera.OffsetX.Value = 1200
+camera.OffsetY.Value = 0
 camera.ExposureTime.SetValue(exp_val)
 camera.AcquisitionFrameRate.SetValue(frame_rate)
-camera.PixelFormat = "BayerBG12"
+camera.PixelFormat = "BayerRG12"
 
 # Grabing Continusely (video) with minimal delay
 camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
@@ -112,7 +112,7 @@ while camera.IsGrabbing():
         # -------------------------------------------------------------------------- Pulse extraction algorithm
         P, Z = core.pos(C, channel_ordering)
 
-        if shift_idx + L1 < L2:
+        if shift_idx + L1-1 < L2:
             Pt[shift_idx:shift_idx+L1, :] = Pt[shift_idx:shift_idx+L1, :] + P
             Zt[shift_idx:shift_idx+L1, :] = Zt[shift_idx:shift_idx+L1, :] + Z
 
@@ -121,7 +121,7 @@ while camera.IsGrabbing():
             Zt[shift_idx:shift_idx+L1-1, :] = Zt[shift_idx:shift_idx+L1-1, :]/2
 
             shift_idx = shift_idx + 1
-        else: # In this case the L2 length is fully loaded, we have to remove the first element and add a new one at the end
+        else:     # In this case the L2 length is fully loaded, we have to remove the first element and add a new one at the end
             # overlap add result
             Pt = np.delete(Pt, 0, 0)  # delete first row (last frame)
             Pt = np.append(Pt, add_row, 0)    # append zeros for the new frame point
@@ -138,7 +138,7 @@ while camera.IsGrabbing():
 
             computing = True
 
-    if shift_idx == L2-L1:
+    if shift_idx == L2-L1+1:
         # now we can also calculate fourier and signal combination
         h, h_raw, hr_est = core.signal_combination(Pt, Zt, L2, B, f)
         heart_rates.append(hr_est)
