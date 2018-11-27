@@ -16,7 +16,7 @@ import pyqtgraph as pg
 import src.disp as disp
 
 frame_rate = 20.
-exp_val = 10000
+exp_val = 20000
 hr_band = [40, 200]
 img_width = 500
 img_height = 500
@@ -24,15 +24,21 @@ img_height = 500
 # Initialize FVP method
 K = 6                   # number of top ranked eigenvectors
 patch_size = 25
-L1 = int(frame_rate)
+L1 = 256
 u0 = 1
-L2 = 256                # window length in frame
-l = float(L2)/frame_rate       # window length in seconds
+L2 = 512               # window length in frame
+l0 = float(L1)/float(frame_rate)       # window length in seconds
+Fb0 = 1./l0                # frequency bin in Hz
+l = float(L2)/float(frame_rate)       # window length in seconds
 Fb = 1./l                # frequency bin in Hz
+f0 = np.linspace(0, L1*Fb0, L1, dtype=np.double)  # frequency vector in Hz
 f = np.linspace(0, L2*Fb, L2, dtype=np.double)  # frequency vector in Hz
 t = np.linspace(0, L2*1./frame_rate, L2)
+hr_min_idx0 = np.argmin(np.abs(f0*60-hr_band[0]))
+hr_max_idx0 = np.argmin(np.abs(f0*60-hr_band[1]))
 hr_min_idx = np.argmin(np.abs(f*60-hr_band[0]))
 hr_max_idx = np.argmin(np.abs(f*60-hr_band[1]))
+B0 = [hr_min_idx0, hr_max_idx0]
 B = [hr_min_idx, hr_max_idx]             # HR range ~ [50, 220] bpm
 
 # Channel ordering for BGR
@@ -78,6 +84,7 @@ qtplt_thread = disp.DispThread(parent=None, t=t)
 
 shift_idx = 0
 heart_rates = []
+acclist = []
 first_run = True
 
 while camera.IsGrabbing():
@@ -110,8 +117,8 @@ while camera.IsGrabbing():
         del Jt[0]       # delete the first element
 
         # -------------------------------------------------------------------------- Pulse extraction algorithm
-        P, Z = core.pos(C, channel_ordering)
-
+        P, Z = core.cdf_sb_pos(C, channel_ordering, B0)
+ 
         if shift_idx + L1-1 < L2:
             Pt[shift_idx:shift_idx+L1, :] = Pt[shift_idx:shift_idx+L1, :] + P
             Zt[shift_idx:shift_idx+L1, :] = Zt[shift_idx:shift_idx+L1, :] + Z
@@ -122,10 +129,10 @@ while camera.IsGrabbing():
 
             shift_idx = shift_idx + 1
         else:     # In this case the L2 length is fully loaded, we have to remove the first element and add a new one at the end
-            # overlap add result
-            Pt = np.delete(Pt, 0, 0)  # delete first row (last frame)
-            Pt = np.append(Pt, add_row, 0)    # append zeros for the new frame point
+            # overlap add resulteros for the new frame point
 
+            Pt = np.delete(Pt, 0, 0)  # delete first row (last frame)
+            Pt = np.append(Pt, add_row, 0)    # append z
             Zt = np.delete(Zt, 0, 0)  # delete first row (last frame)
             Zt = np.append(Zt, add_row, 0)    # append zeros for the new frame point
 
@@ -140,8 +147,9 @@ while camera.IsGrabbing():
 
     if shift_idx == L2-L1+1:
         # now we can also calculate fourier and signal combination
-        h, h_raw, hr_est = core.signal_combination(Pt, Zt, L2, B, f)
+        h, h_raw, hr_est, acc = core.signal_combination(Pt, Zt, L2, B, f)
         heart_rates.append(hr_est)
+        acclist.append(acc)
 
         H = np.delete(H, 0, 0)
         H_RAW = np.delete(H_RAW, 0, 0)
@@ -164,11 +172,16 @@ while camera.IsGrabbing():
             first_run = False
 
     if len(heart_rates) == frame_rate*2:
-        # Display HR estimate and signals
+        # Display HR estimate and signals if accuracy is over threshold
         estimated_HR, _ = stats.mode(heart_rates)
-        qtplt_thread.start_plotting_thread(H, H_RAW, estimated_HR)
+        avrg_acc = np.mean(acclist)
 
+        if avrg_acc >= 4:
+            qtplt_thread.start_plotting_thread(H, H_RAW, estimated_HR)
+        else:
+            qtplt_thread.start_plotting_thread(H, H_RAW, 0)
         heart_rates = []
+        acclist = []
 
     runningTime = (time.time() - startTime)
     fps = 1.0/runningTime

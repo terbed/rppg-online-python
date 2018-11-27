@@ -1,6 +1,5 @@
 from PyQt5 import QtCore, QtWidgets, QtGui
 import pyqtgraph as pg
-import numpy as np
 
 class DispThread(QtCore.QThread):
     def __init__(self, parent, t, *args, **kwargs):
@@ -13,12 +12,12 @@ class DispThread(QtCore.QThread):
 
         self.win_sig = Signal("Filtered pulse signal")
         self.win_sig.show()
-        self.win_sig.resize(800,300) 
+        self.win_sig.resize(1200, 300)
         self.win_sig.raise_()
 
         self.win_sig2 = Signal("RAW pulse signal")
         self.win_sig2.show()
-        self.win_sig2.resize(800,300) 
+        self.win_sig2.resize(1200, 300)
         self.win_sig2.raise_()
 
         self.win_HR = HeartRateLCD()
@@ -40,6 +39,7 @@ class DispThread(QtCore.QThread):
         self.win_sig.setData(self.t, self.H)
         self.win_sig2.setData(self.t, self.H_RAW)
 
+
 class Signal(pg.GraphicsWindow):
 
     def __init__(self, titel, parent=None):
@@ -51,7 +51,6 @@ class Signal(pg.GraphicsWindow):
         self.plotItem = self.addPlot(titel=titel)
 
         self.plotDataItem = self.plotItem.plot([], pen=1, symbolBrush=(255,0,0), symbolSize=5, symbolPen=None)
-
 
     def setData(self, x, y):
         self.plotDataItem.setData(x, y)
@@ -72,7 +71,7 @@ class HeartRateLCD(QtGui.QMainWindow):
  
 #---------Window settings --------------------------------
          
-        self.setGeometry(300,300,250,100)
+        self.setGeometry(300, 300, 250, 100)
         self.setWindowTitle("Heart Rate")
  
 #-------- Slots ------------------------------------------

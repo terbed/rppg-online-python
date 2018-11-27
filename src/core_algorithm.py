@@ -103,6 +103,66 @@ def pbv(raw_signal):
     pass
 
 
+def cdf_sb_pos(C, order, B):
+    """
+    CDF: Color-distortion filtering
+    SB: Sub-band optimization (for POS)
+    POS: Plain orthogonol to skin (core rPPG method
+
+    :param C: signal attained after averaging a patch of pixels for each frame.
+              its shape is [frame, weight_mask_stat, color_channel]
+    :param order: list of channel order based on pulsatile amplitude strength (decreasing order)
+    :param B: pulse band indexes!!
+    :returns: P: The pulse signal for each weight. shape -> [time, weight_mask]
+    :returns: Z: The intensity (energy) of the signal
+    """
+
+    wnum = C.shape[1]
+
+    # Normalize each color channel with its mean
+    Cn = np.divide(C, np.mean(C, axis=0)) - 1
+
+    # Calculate the intensity signal to supress noise later
+    I = Cn[:, :, 0] + Cn[:, :, 1] + Cn[:, :, 2]
+
+    # Compute FFT along time axis -> 0
+    F = np.fft.fft(Cn, axis=0)
+
+    # Do it for each weight-mask statistics
+    P = np.ndarray((C.shape[0], C.shape[1]), dtype=np.double)
+    for i in range(wnum):
+        Ft = F[:, i, :].transpose()
+
+        # pre-processing step: CDF filter -------------------------------------------------------------------------
+        # S = np.dot(np.array([-1, 2, -1])/np.sqrt(6), Ft)  # characteristic transformation
+        S = 1/np.sqrt(6)*(2*Ft[order[0], :] - Ft[order[1], :] - Ft[order[2], :])
+        W = np.divide(np.multiply(S, S.conjugate()), np.sum(np.multiply(Ft, Ft.conjugate()), axis=0))  # energy measurement
+
+        # weighting
+        Fw = np.ndarray(shape=(Ft.shape[0], Ft.shape[1]), dtype=np.complex64)
+        Fw[0, :] = np.multiply(W, Ft[0, :])
+        Fw[1, :] = np.multiply(W, Ft[1, :])
+        Fw[2, :] = np.multiply(W, Ft[2, :])
+
+        # Sub-band POS ----------------------------------------------------------------------------------------
+        # Implementing POS algorithm (BGR channel ordering...) to attain pulse
+        X = Fw[order[0], :] - Fw[order[1], :]
+        Y = Fw[order[0], :] + Fw[order[1], :] - 2 * Fw[order[2], :]
+
+        # Calculating pulse signal for each weight (for ech component)
+        Z = X + np.multiply(Y, np.divide(np.abs(X), np.abs(Y)))
+        # Z = np.multiply(Z, np.divide(np.abs(Z), np.abs(np.sum(Ft, 0))))
+        Z = np.multiply(Z, np.divide(np.abs(Z), np.abs(np.sum(Ft, 0))))
+
+        # band limitation
+        Z[0:B[0]] = 0
+        Z[B[1]:] = 0
+
+        P[:, i] = np.real(np.fft.ifft(Z))
+
+    return np.divide(np.subtract(P, np.mean(P, axis=0)), np.std(P, axis=0)), np.divide(np.subtract(I, np.mean(I, axis=0)), np.std(I, axis=0))
+
+
 # --------------------------------------------- Signal Comb & Plot ----------------------------------------------------
 def signal_combination(Ptn, Ztn, L2, B, f):
     """
@@ -123,7 +183,7 @@ def signal_combination(Ptn, Ztn, L2, B, f):
     Fp = np.fft.fft(np.array(np.transpose(Ptn))) / L2
     Fz = np.fft.fft(np.array(np.transpose(Ztn))) / L2
 
-    W = np.divide(np.abs(np.multiply(Fp, np.conj(Fp))), 1 + np.abs(np.multiply(Fz, np.conj(Fz))))       # Note: No need for abs...
+    W = np.divide(np.abs(np.multiply(Fp, np.conj(Fp))), 1 + np.abs(np.multiply(Fz, np.conj(Fz))))
 
     W[:, 0:B[0]] = 0
     W[:, B[1]:] = 0
@@ -133,7 +193,14 @@ def signal_combination(Ptn, Ztn, L2, B, f):
     hr_est = f[hr_idx] * 60
     hr_est = int(round(hr_est))
 
-    h_raw = np.fft.ifft(np.sum(Fp, axis=0))
+    hfq_raw = np.sum(Fp, axis=0)
+    max_amp = np.abs(hfq_raw.real)[hr_idx]
+    other_average = (np.mean(np.abs(hfq_raw.real[0:hr_idx])) + np.mean(np.abs(hfq_raw.real[hr_idx+1:])))/2
+
+    acc = max_amp/other_average
+    print "accuracy: " + str(max_amp/other_average)
+
+    h_raw = np.fft.ifft(hfq_raw)
     h_raw = h_raw.real
     h = np.fft.ifft(hfq)
     h = h.real
@@ -141,4 +208,4 @@ def signal_combination(Ptn, Ztn, L2, B, f):
     h = (h-np.mean(h))/np.std(h)
     h_raw = (h_raw-np.mean(h_raw))/np.std(h_raw)
 
-    return h, h_raw, hr_est
+    return h, h_raw, hr_est, acc
