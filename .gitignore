@@ -1,0 +1,14 @@
+# Created by .ignore support plugin (hsz.mobi)
+### Example user template template
+### Example user template
+
+# IntelliJ project files
+.idea
+*.iml
+out
+gen
+notes/.ipynb_checkpoints/FVP-checkpoint.ipynb
+notes/fourier.py
+src/__init__.pyc
+src/core_algorithm.pyc
+src/disp.pyc

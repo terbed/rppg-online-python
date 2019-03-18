@@ -173,10 +173,11 @@ while camera.IsGrabbing():
 
     if len(heart_rates) == frame_rate*2:
         # Display HR estimate and signals if accuracy is over threshold
+        print(heart_rates)
         estimated_HR, _ = stats.mode(heart_rates)
         avrg_acc = np.mean(acclist)
 
-        if avrg_acc >= 4:
+        if avrg_acc >= 10:
             qtplt_thread.start_plotting_thread(H, H_RAW, estimated_HR)
         else:
             qtplt_thread.start_plotting_thread(H, H_RAW, 0)
@@ -185,7 +186,7 @@ while camera.IsGrabbing():
 
     runningTime = (time.time() - startTime)
     fps = 1.0/runningTime
-    print "%f  FPS" % fps
+    print("%f  FPS" % fps)
 
 cv2.destroyAllWindows()
 app.exec_()

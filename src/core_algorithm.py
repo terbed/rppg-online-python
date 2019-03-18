@@ -86,7 +86,7 @@ def pos(C, order):
     P = X + np.multiply(Y, np.divide(np.std(X, axis=0), np.std(Y, axis=0)))
 
     # Calculate the intensity signal to supress noise
-    Z = Cn[:, :, 0] + Cn[:, :, 1] + Cn[:, :, 2]
+    Z = C[:, :, 0] + C[:, :, 1] + C[:, :, 2]
 
     return np.divide(np.subtract(P, np.mean(P, axis=0)), np.std(P, axis=0)), np.divide(np.subtract(Z, np.mean(Z, axis=0)), np.std(Z, axis=0))
 
@@ -121,9 +121,11 @@ def cdf_sb_pos(C, order, B):
 
     # Normalize each color channel with its mean
     Cn = np.divide(C, np.mean(C, axis=0)) - 1
+    nans = np.isnan(Cn)
+    Cn[nans] = 0.
 
     # Calculate the intensity signal to supress noise later
-    I = Cn[:, :, 0] + Cn[:, :, 1] + Cn[:, :, 2]
+    I = C[:, :, 0] + C[:, :, 1] + C[:, :, 2]
 
     # Compute FFT along time axis -> 0
     F = np.fft.fft(Cn, axis=0)
@@ -197,8 +199,8 @@ def signal_combination(Ptn, Ztn, L2, B, f):
     max_amp = np.abs(hfq_raw.real)[hr_idx]
     other_average = (np.mean(np.abs(hfq_raw.real[0:hr_idx])) + np.mean(np.abs(hfq_raw.real[hr_idx+1:])))/2
 
-    acc = max_amp/other_average
-    print "accuracy: " + str(max_amp/other_average)
+    acc = 10*np.log10(max_amp/other_average)
+    print("SNR: " + str(max_amp/other_average))
 
     h_raw = np.fft.ifft(hfq_raw)
     h_raw = h_raw.real
